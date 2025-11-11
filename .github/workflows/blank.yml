@@ -15,7 +15,7 @@ jobs:
         uses: actions/checkout@v4
 
       # ----------------------------------------------------
-      # ✨ 步骤 1: 修正了 GPG 密钥下载
+      # ✨ 步骤 1: 修正 - 添加 Google Artifact Registry
       # ----------------------------------------------------
       - name: Install dependencies and Cuttlefish repo
         run: |
@@ -24,19 +24,18 @@ jobs:
           # 1. 安装基础依赖
           sudo apt-get install -y git devscripts equivs config-package-dev debhelper-compat golang curl gpg
           
-          # 2. 修正：添加 GPG 密钥（使用更健壮的两步法）
-          #    -fL: -f (fail-fast on server errors), -L (follow redirects)
-          echo "Downloading Cuttlefish GPG key..."
-          curl -fL "https://cuttlefish.github.io/data/conf/google-cloud.gpg" -o "cuttlefish-key.gpg"
+          # 2. 修正：从 Google Artifact Registry 下载新的 GPG 密钥
+          echo "Downloading Cuttlefish GPG key from Google Artifact Registry..."
+          sudo curl -fsSL "https://us-apt.pkg.dev/doc/repo-signing-key.gpg" -o "/etc/apt/trusted.gpg.d/artifact-registry.asc"
           
-          # 3. 将下载的密钥文件解密到 keyring 目录
-          #    (只有在 curl 成功后才会运行到这一步)
-          sudo gpg --dearmor -o /usr/share/keyrings/cuttlefish-archive-keyring.gpg < cuttlefish-key.gpg
+          # 3. 修正：确保密钥文件可读
+          sudo chmod a+r /etc/apt/trusted.gpg.d/artifact-registry.asc
           
-          # 4. 添加 Cuttlefish apt 仓库
-          echo "deb [signed-by=/usr/share/keyrings/cuttlefish-archive-keyring.gpg] https://cuttlefish.github.io/data/debian stable main" | sudo tee /etc/apt/sources.list.d/cuttlefish.list
+          # 4. 修正：添加新的 Artifact Registry 仓库 URL
+          echo "deb https://us-apt.pkg.dev/projects/android-cuttlefish-artifacts android-cuttlefish main" | sudo tee -a /etc/apt/sources.list.d/artifact-registry.list
           
-          # 5. 再次更新 apt 列表以识别新仓库
+          # 5. 再次更新 apt 列表 (至关重要)
+          # 这将使 apt 能够找到 'cuttlefish-common-build-deps' 等包
           sudo apt-get update
 
       # --- 后续步骤保持不变 ---
@@ -45,9 +44,8 @@ jobs:
       - name: Clone Cuttlefish repository
         run: git clone https://github.com/google/android-cuttlefish
 
-      # 
-
       # 步骤 3: 构建 Cuttlefish 软件包
+      # 现在 mk-build-deps 应该可以正常工作了
       - name: Build Cuttlefish packages
         run: tools/buildutils/build_packages.sh
         working-directory: ./android-cuttlefish
@@ -60,4 +58,4 @@ jobs:
           path: |
             ./android-cuttlefish/cuttlefish-base_*_*64.deb
             ./android-cuttlefish/cuttlefish-user_*_*64.deb
-          retention-days: 7
+          retention-days: 1
