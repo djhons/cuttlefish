@@ -41,7 +41,7 @@ jobs:
           ./tools/buildutils/build_packages.sh
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: cuttlefish-debs
           path: debs/
