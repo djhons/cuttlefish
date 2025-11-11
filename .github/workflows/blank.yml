@@ -1,47 +1,53 @@
-name: Build Cuttlefish
+name: Build and Upload Cuttlefish
 
 on:
-  push:
-    branches:
-      - main
+  # 允许您从 "Actions" 标签页手动运行此工作流
   workflow_dispatch:
+  
+  # 也在推送到 main 分支时自动运行
+  push:
+    branches: [ main ]
 
 jobs:
-  build:
-    name: Build Cuttlefish Packages
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+  build-cuttlefish:
+    name: Build and Upload Cuttlefish
+    runs-on: ubuntu-latest
 
-      - name: Set up dependencies
+    steps:
+      # 步骤 1: 检出您的代码
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 步骤 2: 安装依赖
+      - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            curl unzip zip zlib1g-dev \
-            python3 python3-distutils python3-venv \
-            build-essential debhelper devscripts pkg-config \
-            fakeroot git gnupg lsb-release
+          sudo apt-get install -y git devscripts equivs config-package-dev debhelper-compat golang curl
 
-      - name: Install Bazel
-        run: |
-          # 使用 Bazel 官方 apt 源
-          curl -fsSL https://bazel.build/bazel-release.pub.gpg | gpg --dearmor > bazel-archive-keyring.gpg
-          sudo mv bazel-archive-keyring.gpg /usr/share/keyrings/bazel-archive-keyring.gpg
-          echo "deb [arch=amd64 signed-by=/usr/share/keyrings/bazel-archive-keyring.gpg] https://storage.googleapis.com/bazel-apt stable jdk1.8" | sudo tee /etc/apt/sources.list.d/bazel.list
-          sudo apt-get update && sudo apt-get install -y bazel
+      # 步骤 3: 克隆 Cuttlefish 仓库
+      - name: Clone Cuttlefish repository
+        run: git clone https://github.com/google/android-cuttlefish
 
-      - name: Disable Bazel sandbox
-        run: |
-          echo 'export BAZEL_USE_SANDBOX=0' >> $GITHUB_ENV
-
+      # 步骤 4: 构建 Cuttlefish 软件包
       - name: Build Cuttlefish packages
-        run: |
-          chmod +x tools/buildutils/build_packages.sh
-          ./tools/buildutils/build_packages.sh
+        run: tools/buildutils/build_packages.sh
+        working-directory: ./android-cuttlefish
 
-      - name: Upload artifacts
+      # ----------------------------------------------------
+      # ✨ 新增步骤：上传 .deb 文件
+      # ----------------------------------------------------
+      - name: Upload Cuttlefish .deb artifacts
         uses: actions/upload-artifact@v4
         with:
+          # 在 GitHub UI 中显示的名字
           name: cuttlefish-debs
-          path: debs/
+          
+          # 要上传的文件路径
+          # 我们使用通配符来匹配编译生成的文件
+          path: |
+            ./android-cuttlefish/cuttlefish-base_*_*64.deb
+            ./android-cuttlefish/cuttlefish-user_*_*64.deb
+            # 您可以根据需要添加更多 .deb 文件
+            
+          # (可选) 工件 (Artifacts) 的保留天数
+          retention-days: 7
