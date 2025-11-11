@@ -1,0 +1,47 @@
+name: Build Cuttlefish
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Cuttlefish Packages
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            curl unzip zip zlib1g-dev \
+            python3 python3-distutils python3-venv \
+            build-essential debhelper devscripts pkg-config \
+            fakeroot git gnupg lsb-release
+
+      - name: Install Bazel
+        run: |
+          # 使用 Bazel 官方 apt 源
+          curl -fsSL https://bazel.build/bazel-release.pub.gpg | gpg --dearmor > bazel-archive-keyring.gpg
+          sudo mv bazel-archive-keyring.gpg /usr/share/keyrings/bazel-archive-keyring.gpg
+          echo "deb [arch=amd64 signed-by=/usr/share/keyrings/bazel-archive-keyring.gpg] https://storage.googleapis.com/bazel-apt stable jdk1.8" | sudo tee /etc/apt/sources.list.d/bazel.list
+          sudo apt-get update && sudo apt-get install -y bazel
+
+      - name: Disable Bazel sandbox
+        run: |
+          echo 'export BAZEL_USE_SANDBOX=0' >> $GITHUB_ENV
+
+      - name: Build Cuttlefish packages
+        run: |
+          chmod +x tools/buildutils/build_packages.sh
+          ./tools/buildutils/build_packages.sh
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: cuttlefish-debs
+          path: debs/
